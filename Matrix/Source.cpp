@@ -214,56 +214,56 @@ int main()
 {
 	int inputs = 2;
 	int outputs = 3;
+	float learningRate = 0.1f;
 	
-	Matrix<double> input(1, inputs);
-	Matrix<double> output;
-	Matrix<double> weights(inputs, outputs);
-	Matrix<double> bias(1, outputs);
+	Matrix<float> input(1, inputs);
+	Matrix<float> weights(inputs, outputs);
+	Matrix<float> bias(1, outputs);
+	Matrix<float> output;
 	
 	weights.fillRandom();
 	bias.fillRandom();
 
-	Matrix<double> expected(1, outputs);
-	Matrix<double> outputGradient;
-	Matrix<double> weightsGradient;
+	Matrix<float> expected(1, outputs);
+	Matrix<float> outputGradient;
+	Matrix<float> weightsGradient;
 	
 	while (true)
 	{
 		input.fillRandom();
 		output = input * weights + bias;
-		cout << "input:\n";
+		
+		/*cout << "input:\n";
 		input.print();
 		cout << "weights:\n";
 		weights.print();
 		cout << "bias:\n";
 		bias.print();
 		cout << "output:\n";
-		output.print();
+		output.print();*/
 
 		for (int i = 0; i < outputs; i++)
 		{
 			expected(0, i) = input(0, 0) * (i * 0.2 - 0.3) - input(0, 1) * (i * 1.4 - 1.6) + i - 0.3;
 		}
-		cout << "expected:\n";
-		expected.print();
 
 		outputGradient = expected - output;
-		cout << "outputGradient:\n";
-		outputGradient.print();
 		
 		input.transpose();
 		weightsGradient = input * outputGradient;
 		input.transpose();
-		cout << "weightsGradient:\n";
-		weightsGradient.print();
 		
-		weightsGradient *= 0.1;
-		weights += weightsGradient;
+		/*cout << "expected:\n";
+		expected.print();*/
+		cout << "outputGradient:\n";
+		outputGradient.print();
+		/*cout << "weightsGradient:\n";
+		weightsGradient.print();*/
+		
+		weights += weightsGradient * learningRate;
+		bias += outputGradient * learningRate;
 
-		outputGradient *= 0.1;
-		bias += outputGradient;
-
-		getchar();
+		//getchar();
 	}
 
 	return 0;
