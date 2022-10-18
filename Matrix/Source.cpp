@@ -112,16 +112,6 @@ struct Matrix
 		}
 		return result;
 	}
-	Matrix operator/(T scalar) const
-	{
-		T invScalar = 1 / scalar;
-		Matrix result(rows, cols);
-		for (uint32_t i = 0; i < rows * cols; i++)
-		{
-			result.data[i] = data[i] * invScalar;
-		}
-		return result;
-	}
 	
 	Matrix& operator+=(const Matrix& other)
 	{
@@ -167,15 +157,6 @@ struct Matrix
 		}
 		return *this;
 	}
-	Matrix& operator/=(T scalar)
-	{
-		T invScalar = 1 / scalar;
-		for (uint32_t i = 0; i < rows * cols; i++)
-		{
-			data[i] *= invScalar;
-		}
-		return *this;
-	}
 
 	void transpose()
 	{
@@ -208,63 +189,122 @@ struct Matrix
 			data[i] = random.normalRand();
 		}
 	}
+	
+	template<typename F>
+	void apply(F func)
+	{
+		for (uint32_t i = 0; i < rows * cols; i++)
+		{
+			data[i] = func(data[i]);
+		}
+	}
+	
+	template<typename F>
+	void addOn(F func, const Matrix& input, const Matrix& other)
+	{
+		assert(rows == input.rows && cols == input.cols);
+		assert(rows == other.rows && cols == other.cols);
+		for (uint32_t i = 0; i < rows * cols; i++)
+		{
+			data[i] += func(input.data[i], other.data[i]);
+		}
+	}
 };
 
 int main() 
 {
 	int inputs = 2;
 	int outputs = 3;
+	int batchSize = 100;
+	float invBatchSize = 1.0f / batchSize;
 	float learningRate = 0.1f;
 	
 	Matrix<float> input(1, inputs);
 	Matrix<float> weights(inputs, outputs);
 	Matrix<float> bias(1, outputs);
-	Matrix<float> output;
+	Matrix<float> output(1, outputs);
+	Matrix<float> outputActivated(1, outputs);
+	
+	auto nothing = [](float x) { return x; };
+	auto nothingGradient = [](float x, float y) { return y; };
+	auto leakyRelu = [](float x) { return x * (1.0f - (x < 0.0f) * 0.9f); };
+	auto leakyReluGradient = [](float x, float y) { return y * (1.0f - (x < 0.0f) * 0.9f); };
+	auto relu = [](float x) { return x * (x > 0.0f); };
+	auto reluGradient = [](float x, float y) { return y * (x > 0.0f); };
+
+	auto activation = relu;
+	auto activationGradient = reluGradient;
 	
 	weights.fillRandom();
 	bias.fillRandom();
 
 	Matrix<float> expected(1, outputs);
-	Matrix<float> outputGradient;
-	Matrix<float> weightsGradient;
+	Matrix<float> outputActivatedGradient(1, outputs);
+	Matrix<float> outputGradient(1, outputs);
+	Matrix<float> weightsGradient(inputs, outputs);
 	
-	while (true)
+	int iter = 200;
+	while (iter--)
 	{
-		input.fillRandom();
-		output = input * weights + bias;
-		
-		/*cout << "input:\n";
-		input.print();
-		cout << "weights:\n";
-		weights.print();
-		cout << "bias:\n";
-		bias.print();
-		cout << "output:\n";
-		output.print();*/
-
-		for (int i = 0; i < outputs; i++)
+		outputGradient.fill(0.0f);
+		weightsGradient.fill(0.0f);
+		for (int i = 0; i < batchSize; i++)
 		{
-			expected(0, i) = input(0, 0) * (i * 0.2 - 0.3) - input(0, 1) * (i * 1.4 - 1.6) + i - 0.3;
+			input.fillRandom();
+			output = input * weights + bias;
+			outputActivated = output;
+			outputActivated.apply(activation);
+
+			for (int i = 0; i < outputs; i++)
+			{
+				expected(0, i) = input(0, 0) * (i * 0.2 - 0.3) - input(0, 1) * (i * 1.4 - 1.6) + i - 0.3;
+			}
+			expected.apply(activation);
+
+			/*
+			-0.3, -0.1, 0.1
+			1.6, 0.2, -1.2
+
+			-0.3, 0.7, 1.7
+			*/
+
+			outputActivatedGradient = expected - outputActivated;
+			outputGradient.addOn(activationGradient, output, outputActivatedGradient);
+
+			input.transpose();
+			weightsGradient += input * outputGradient;
+			input.transpose();
+
+			/*cout << "input:\n";
+			input.print();
+			cout << "weights:\n";
+			weights.print();
+			cout << "bias:\n";
+			bias.print();
+			cout << "output:\n";
+			output.print();*/
+			/*cout << "outputActivated:\n";
+			outputActivated.print();
+			cout << "expected:\n";
+			expected.print();*/
+			/*cout << "outputActivatedGradient:\n";
+			outputActivatedGradient.print();*/
 		}
+		weightsGradient *= invBatchSize * learningRate;
+		weights += weightsGradient;
+		outputGradient *= invBatchSize * learningRate;
+		bias += outputGradient;
 
-		outputGradient = expected - output;
-		
-		input.transpose();
-		weightsGradient = input * outputGradient;
-		input.transpose();
-		
-		/*cout << "expected:\n";
-		expected.print();*/
-		cout << "outputGradient:\n";
+		/*cout << "outputGradient:\n";
 		outputGradient.print();
-		/*cout << "weightsGradient:\n";
+		cout << "weightsGradient:\n";
 		weightsGradient.print();*/
-		
-		weights += weightsGradient * learningRate;
-		bias += outputGradient * learningRate;
-
-		//getchar();
 	}
+
+	cout << "weights:\n";
+	weights.print();
+	cout << "bias:\n";
+	bias.print();
 
 	return 0;
 }
